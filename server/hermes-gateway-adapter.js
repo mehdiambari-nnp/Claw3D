@@ -286,6 +286,67 @@ function clearHistory(sessionKey) {
   saveHistoryToDisk();
 }
 
+// ---------------------------------------------------------------------------
+// Agent file persistence (for Claw3D agents created by UI)
+// ---------------------------------------------------------------------------
+
+function loadAgentFilesFromDisk() {
+  try {
+    const workspacesDir = path.join(HOME, ".hermes");
+    if (!fs.existsSync(workspacesDir)) {
+      console.log("[hermes-adapter] No workspaces directory found yet.");
+      return;
+    }
+
+    const entries = fs.readdirSync(workspacesDir, { withFileTypes: true });
+    let loadedCount = 0;
+
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.startsWith("workspace-")) continue;
+
+      const workspacePath = path.join(workspacesDir, entry.name);
+      const agentId = entry.name.replace("workspace-", "");
+
+      try {
+        const files = fs.readdirSync(workspacePath);
+        for (const file of files) {
+          if (["SOUL.md", "AGENTS.md", "USER.md", "TOOLS.md", "HEARTBEAT.md", "MEMORY.md", "IDENTITY.md"].includes(file)) {
+            const filePath = path.join(workspacePath, file);
+            const content = fs.readFileSync(filePath, "utf8");
+            const key = `${agentId}/${file}`;
+            agentFiles.set(key, content);
+            loadedCount++;
+          }
+        }
+      } catch (err) {
+        console.warn(`[hermes-adapter] Could not load agent files from ${workspacePath}:`, sanitizeErrorMessage(err));
+      }
+    }
+
+    if (loadedCount > 0) {
+      console.log(`[hermes-adapter] Loaded ${loadedCount} agent file(s) from disk.`);
+    }
+  } catch (err) {
+    console.warn("[hermes-adapter] Could not load agent files from disk:", sanitizeErrorMessage(err));
+  }
+}
+
+function persistAgentFilesToDisk(agentId, fileName, content) {
+  try {
+    const agent = agentRegistry.get(agentId);
+    if (!agent || !agent.workspace) {
+      return;
+    }
+
+    const filePath = path.join(agent.workspace, fileName);
+    fs.mkdirSync(agent.workspace, { recursive: true });
+    fs.writeFileSync(filePath, content, "utf8");
+    console.log(`[hermes-adapter] Persisted agent file: ${filePath}`);
+  } catch (err) {
+    console.warn(`[hermes-adapter] Could not persist agent file ${fileName}:`, sanitizeErrorMessage(err));
+  }
+}
+
 function randomId() {
   return require("crypto").randomBytes(8).toString("hex");
 }
@@ -615,7 +676,19 @@ async function execDelegateTask(args) {
   const model = agent.settings.model || HERMES_MODEL;
 
   // Build messages for sub-agent
-  const systemMsg = agent.systemPrompt ? [{ role: "system", content: agent.systemPrompt }] : [];
+  // Construct full system prompt from agent files + fallback
+  let systemPromptContent = "";
+  const soul = agentFiles.get(`${targetId}/SOUL.md`) || "";
+  const agents = agentFiles.get(`${targetId}/AGENTS.md`) || "";
+  const user = agentFiles.get(`${targetId}/USER.md`) || "";
+  
+  if (soul || agents || user) {
+    systemPromptContent = [soul, agents, user].filter(x => x).join("\n\n");
+  } else {
+    systemPromptContent = agent.systemPrompt || `You are ${agent.name}.`;
+  }
+  
+  const systemMsg = systemPromptContent ? [{ role: "system", content: systemPromptContent }] : [];
   const contextHistory = agent.settings.wipe ? [] : [...history];
   const messages = [...systemMsg, ...contextHistory, { role: "user", content: message }];
 
@@ -846,6 +919,10 @@ async function handleMethod(method, params, id, sendEvent) {
       const newId = `${slug}-${randomId().slice(0, 6)}`;
       const workspace = (typeof p.workspace === "string" && p.workspace)
         ? p.workspace : `${HOME}/.hermes/workspace-${slug}`;
+      
+      // Ensure workspace directory exists
+      fs.mkdirSync(workspace, { recursive: true });
+      
       agentRegistry.set(newId, {
         id: newId, name: agentName, workspace,
         role: "", systemPrompt: `You are ${agentName}.`,
@@ -877,12 +954,23 @@ async function handleMethod(method, params, id, sendEvent) {
     case "agents.files.get": {
       const key = `${p.agentId || AGENT_ID}/${p.name || ""}`;
       const content = agentFiles.get(key);
-      return resOk(id, { file: content !== undefined ? { content } : { missing: true } });
+      const agent = agentRegistry.get(p.agentId || AGENT_ID);
+      const workspace = agent?.workspace || null;
+      
+      return resOk(id, { 
+        file: content !== undefined ? { content } : { missing: true },
+        workspace
+      });
     }
 
     case "agents.files.set": {
       const key = `${p.agentId || AGENT_ID}/${p.name || ""}`;
-      agentFiles.set(key, typeof p.content === "string" ? p.content : "");
+      const content = typeof p.content === "string" ? p.content : "";
+      agentFiles.set(key, content);
+      
+      // Persist to disk
+      persistAgentFilesToDisk(p.agentId || AGENT_ID, p.name || "", content);
+      
       return resOk(id, {});
     }
 
@@ -1276,4 +1364,5 @@ function startAdapter() {
 }
 
 loadHistoryFromDisk();
+loadAgentFilesFromDisk();
 startAdapter();
