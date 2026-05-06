@@ -351,6 +351,73 @@ function randomId() {
   return require("crypto").randomBytes(8).toString("hex");
 }
 
+// ---------------------------------------------------------------------------
+// Skill scanning & discovery
+// ---------------------------------------------------------------------------
+
+function scanInstalledSkills(workspaceDir) {
+  const skillsDir = path.join(workspaceDir, "skills");
+  const results = [];
+
+  try {
+    console.log(`[hermes-adapter] Scanning skills in: ${skillsDir}`);
+    console.log(`[hermes-adapter] Directory exists: ${fs.existsSync(skillsDir)}`);
+
+    if (!fs.existsSync(skillsDir)) {
+      console.log(`[hermes-adapter] Skills directory not found: ${skillsDir}`);
+      return results;
+    }
+
+    const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
+    console.log(`[hermes-adapter] Found ${entries.length} entries in skills directory`);
+
+    for (const entry of entries) {
+      console.log(`[hermes-adapter]   - Entry: ${entry.name} (isDirectory: ${entry.isDirectory()})`);
+
+      // Skip hidden directories and files
+      if (entry.name.startsWith(".")) continue;
+      if (!entry.isDirectory()) continue;
+
+      const skillDir = path.join(skillsDir, entry.name);
+      const skillMdPath = path.join(skillDir, "SKILL.md");
+
+      console.log(`[hermes-adapter]     Checking for SKILL.md at: ${skillMdPath}`);
+      console.log(`[hermes-adapter]     SKILL.md exists: ${fs.existsSync(skillMdPath)}`);
+
+      // Only include directories that have a SKILL.md file
+      if (!fs.existsSync(skillMdPath)) continue;
+
+      results.push({
+        name: entry.name,
+        path: skillDir,
+        filePath: skillMdPath,
+        baseDir: skillsDir,
+        skillKey: entry.name,
+        source: "openclaw-workspace",
+        bundled: false,
+        disabled: false,
+        blockedByAllowlist: false,
+        eligible: true,
+        always: false,
+        requirements: { bins: [], anyBins: [], env: [], config: [], os: [] },
+        missing: { bins: [], anyBins: [], env: [], config: [], os: [] },
+        configChecks: [],
+        install: [],
+      });
+
+      console.log(`[hermes-adapter] ✓ Registered skill: ${entry.name}`);
+    }
+  } catch (err) {
+    console.warn(
+      `[hermes-adapter] Error scanning skills directory (${skillsDir}):`,
+      sanitizeErrorMessage(err)
+    );
+  }
+
+  console.log(`[hermes-adapter] Skills scan complete: found ${results.length} skill(s)`);
+  return results;
+}
+
 function redactSecrets(value) {
   if (typeof value !== "string" || !value) return value;
   let redacted = value;
@@ -1174,8 +1241,23 @@ async function handleMethod(method, params, id, sendEvent) {
 
     // --- Skills & models ----------------------------------------------------
 
-    case "skills.status":
-      return resOk(id, { skills: [] });
+    case "skills.status": {
+      const agentId = typeof p.agentId === "string" ? p.agentId.trim() : AGENT_ID;
+      const agent = agentRegistry.get(agentId);
+      const workspaceDir = agent?.workspace || `${HOME}/.hermes/workspace-${agentId}`;
+      const skills = scanInstalledSkills(workspaceDir);
+      const managedSkillsDir = `${workspaceDir}/skills/.managed`;
+
+      console.log(
+        `[hermes-adapter] skills.status for agent ${agentId}: found ${skills.length} skill(s)`
+      );
+
+      return resOk(id, {
+        skills,
+        workspaceDir,
+        managedSkillsDir,
+      });
+    }
 
     case "models.list":
       try {
