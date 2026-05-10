@@ -221,11 +221,14 @@ const cronJobs = new Map();
  *   settings: { wipe: boolean, continuity: boolean, model: string, boundaries?: string }
  * }>}
  */
+const SAAS_PROJECT_DIR = path.join(HOME, "Developer/NNP/Git/SAAS");
+
 const agentRegistry = new Map([
   [AGENT_ID, {
     id: AGENT_ID,
     name: HERMES_AGENT_NAME,
     workspace: `${HOME}/.hermes/workspace-hermes`,
+    cwd: SAAS_PROJECT_DIR,
     role: "Orchestrator",
     systemPrompt: ORCHESTRATOR_SYSTEM_PROMPT,
     settings: { wipe: false, continuity: true, model: HERMES_MODEL },
@@ -290,9 +293,58 @@ function clearHistory(sessionKey) {
 // Agent file persistence (for Claw3D agents created by UI)
 // ---------------------------------------------------------------------------
 
+function discoverAndCreateAgents() {
+  try {
+    const workspacesDir = path.join(HOME, ".hermes");
+    console.log(`[hermes-adapter] Discovering agent workspaces from: ${workspacesDir}`);
+    console.log(`[hermes-adapter] Agent working directory: ${SAAS_PROJECT_DIR}`);
+
+    if (!fs.existsSync(workspacesDir)) {
+      console.log("[hermes-adapter] No workspaces directory found.");
+      return;
+    }
+
+    const entries = fs.readdirSync(workspacesDir, { withFileTypes: true });
+    let createdCount = 0;
+
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.startsWith("workspace-")) continue;
+
+      const workspacePath = path.join(workspacesDir, entry.name);
+      const agentId = entry.name.replace("workspace-", "");
+
+      // Skip if agent already exists (e.g., hermes)
+      if (agentRegistry.has(agentId)) {
+        console.log(`[hermes-adapter] Agent already registered: ${agentId}`);
+        continue;
+      }
+
+      // Create agent entry from workspace
+      const agent = {
+        id: agentId,
+        name: agentId.charAt(0).toUpperCase() + agentId.slice(1),
+        workspace: workspacePath,
+        cwd: SAAS_PROJECT_DIR,
+        role: agentId === "architect" ? "Architect" : agentId === "builder" ? "Builder" : agentId === "tester" ? "Tester" : agentId === "analyst" ? "Analyst" : "Agent",
+        settings: { wipe: false, continuity: true, model: HERMES_MODEL },
+      };
+
+      agentRegistry.set(agentId, agent);
+      console.log(`[hermes-adapter] ✓ Auto-created agent from workspace: ${agentId} (cwd: ${SAAS_PROJECT_DIR})`);
+      createdCount++;
+    }
+
+    console.log(`[hermes-adapter] Agent discovery complete. Created: ${createdCount}`);
+  } catch (err) {
+    console.warn("[hermes-adapter] Could not discover agents:", sanitizeErrorMessage(err));
+  }
+}
+
 function loadAgentFilesFromDisk() {
   try {
     const workspacesDir = path.join(HOME, ".hermes");
+    console.log(`[hermes-adapter] Loading agent files from: ${workspacesDir}`);
+
     if (!fs.existsSync(workspacesDir)) {
       console.log("[hermes-adapter] No workspaces directory found yet.");
       return;
@@ -315,17 +367,16 @@ function loadAgentFilesFromDisk() {
             const content = fs.readFileSync(filePath, "utf8");
             const key = `${agentId}/${file}`;
             agentFiles.set(key, content);
+            console.log(`[hermes-adapter]   ✓ ${agentId}/${file}`);
             loadedCount++;
           }
         }
       } catch (err) {
-        console.warn(`[hermes-adapter] Could not load agent files from ${workspacePath}:`, sanitizeErrorMessage(err));
+        console.warn(`[hermes-adapter] Could not load files from ${agentId}:`, sanitizeErrorMessage(err));
       }
     }
 
-    if (loadedCount > 0) {
-      console.log(`[hermes-adapter] Loaded ${loadedCount} agent file(s) from disk.`);
-    }
+    console.log(`[hermes-adapter] ✓ Loaded ${loadedCount} agent file(s) from disk`);
   } catch (err) {
     console.warn("[hermes-adapter] Could not load agent files from disk:", sanitizeErrorMessage(err));
   }
@@ -974,6 +1025,7 @@ async function handleMethod(method, params, id, sendEvent) {
     case "agents.list": {
       const allAgents = [...agentRegistry.values()].map((agent) => ({
         id: agent.id, name: agent.name, workspace: agent.workspace,
+        cwd: agent.cwd || SAAS_PROJECT_DIR,
         identity: { name: agent.name, emoji: "🤖" },
         role: agent.role,
       }));
@@ -992,10 +1044,11 @@ async function handleMethod(method, params, id, sendEvent) {
       
       agentRegistry.set(newId, {
         id: newId, name: agentName, workspace,
+        cwd: SAAS_PROJECT_DIR,
         role: "", systemPrompt: `You are ${agentName}.`,
         settings: { wipe: false, continuity: true, model: HERMES_MODEL },
       });
-      return resOk(id, { agentId: newId, name: agentName, workspace });
+      return resOk(id, { agentId: newId, name: agentName, workspace, cwd: SAAS_PROJECT_DIR });
     }
 
     case "agents.delete": {
@@ -1023,10 +1076,12 @@ async function handleMethod(method, params, id, sendEvent) {
       const content = agentFiles.get(key);
       const agent = agentRegistry.get(p.agentId || AGENT_ID);
       const workspace = agent?.workspace || null;
-      
-      return resOk(id, { 
+      const cwd = agent?.cwd || SAAS_PROJECT_DIR;
+
+      return resOk(id, {
         file: content !== undefined ? { content } : { missing: true },
-        workspace
+        workspace,
+        cwd
       });
     }
 
@@ -1446,5 +1501,6 @@ function startAdapter() {
 }
 
 loadHistoryFromDisk();
+discoverAndCreateAgents();
 loadAgentFilesFromDisk();
 startAdapter();
