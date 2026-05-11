@@ -3145,18 +3145,6 @@ export function OfficeScreen({
     gatewayUrl,
     agents: standupAgentSnapshots,
   });
-  // Log standup meeting changes for debugging
-  useEffect(() => {
-    if (standupController.meeting) {
-      console.log("[standup-debug] Meeting state:", {
-        phase: standupController.meeting.phase,
-        participantCount: standupController.meeting.participantOrder.length,
-        participants: standupController.meeting.participantOrder,
-        arrivedCount: standupController.meeting.arrivedAgentIds.length,
-        arrivedAgents: standupController.meeting.arrivedAgentIds,
-      });
-    }
-  }, [standupController.meeting]);
 
   const taskBoard = useTaskBoardController({
     gatewayUrl,
@@ -4371,7 +4359,6 @@ export function OfficeScreen({
   }, [state.agents]);
   const remoteOfficeAgents = useMemo(
     () => {
-      console.log("[remoteOfficeAgents-calc] Recalculating agents. Snapshot agents:", remoteOfficeSnapshot?.agents?.length ?? 0, "Standup active:", !!standupController.meeting);
       const agents = (remoteOfficeSnapshot?.agents ?? []).map((agent) => {
         // Override state to "meeting" if agent is in active standup
         const isMeetingActive =
@@ -4385,13 +4372,6 @@ export function OfficeScreen({
           ...agent,
           state: isParticipant ? "meeting" : agent.state,
         };
-        if (isParticipant) {
-          console.log("[standup-animation] Agent override to meeting:", {
-            agentId: agent.agentId,
-            phase: standupController.meeting?.phase,
-            newState: "meeting",
-          });
-        }
         return mapRemotePresenceAgentToOffice(agentWithMeetingState);
       });
       return agents;
@@ -4399,48 +4379,6 @@ export function OfficeScreen({
     [remoteOfficeSnapshot, standupController.meeting]
   );
 
-  // Log agent states whenever they change
-  useEffect(() => {
-    const meetingActive = standupController.meeting && (standupController.meeting.phase === "gathering" || standupController.meeting.phase === "in_progress");
-    console.log("%c=== STANDUP DEBUG ===", "font-size: 14px; font-weight: bold; color: #00ff00;");
-    console.log("Meeting Active:", meetingActive);
-    console.log("Meeting Phase:", standupController.meeting?.phase);
-    console.log("Participants:", standupController.meeting?.participantOrder);
-    console.log("Remote Snapshot Agents:", remoteOfficeSnapshot?.agents?.length ?? 0);
-    console.log("Remote Office Agents (with override):", remoteOfficeAgents.length);
-    console.log("Agents detail:", remoteOfficeAgents.map((a) => ({
-      id: a.id,
-      name: a.name,
-      status: a.status,
-    })));
-  }, [remoteOfficeAgents, standupController.meeting, remoteOfficeSnapshot]);
-
-  // Log standup state changes
-  useEffect(() => {
-    if (standupController.meeting) {
-      console.log("[standup-state-change] Standup meeting state:", {
-        phase: standupController.meeting.phase,
-        participants: standupController.meeting.participantOrder,
-        arrivedCount: standupController.meeting.arrivedAgentIds?.length ?? 0,
-        totalParticipants: standupController.meeting.participantOrder.length,
-      });
-    } else {
-      console.log("[standup-state-change] No standup meeting active");
-    }
-  }, [standupController.meeting]);
-
-  // Log snapshot updates
-  useEffect(() => {
-    console.log("[snapshot-update] Remote presence snapshot changed:", {
-      hasAgents: !!remoteOfficeSnapshot?.agents,
-      count: remoteOfficeSnapshot?.agents?.length ?? 0,
-      agents: remoteOfficeSnapshot?.agents?.map((a) => ({
-        agentId: a.agentId,
-        name: a.name,
-        state: a.state,
-      })) ?? [],
-    });
-  }, [remoteOfficeSnapshot]);
 
   const chatRosterEntries = useMemo<ChatRosterEntry[]>(
     () => [
@@ -4468,15 +4406,6 @@ export function OfficeScreen({
   const allVisibleAgents = useMemo(
     () => {
       const all = [...officeAgents, ...remoteOfficeAgents];
-      console.log("[standup-debug] All visible agents for 3D render:", {
-        local: officeAgents.length,
-        remote: remoteOfficeAgents.length,
-        total: all.length,
-        agents: all.map((a) => ({
-          id: a.id,
-          status: a.status,
-        })),
-      });
       return all;
     },
     [officeAgents, remoteOfficeAgents],

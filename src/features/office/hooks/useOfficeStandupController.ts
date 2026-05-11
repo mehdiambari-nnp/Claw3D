@@ -279,9 +279,7 @@ export const useOfficeStandupController = (params: {
 
   const startMeeting = useCallback(
     async (trigger: "manual" | "scheduled" = "manual") => {
-      console.log("[standup-START] startMeeting called:", { trigger, gatewayUrl: gatewayUrl.trim().length > 0 });
       if (!gatewayUrl.trim()) return;
-      console.log("[standup-API] Calling /api/office/standup/run with agents:", agents.map(a => a.agentId));
       const payload = await fetchJson<StandupMeetingResponse>(
         "/api/office/standup/run",
         {
@@ -294,28 +292,20 @@ export const useOfficeStandupController = (params: {
           }),
         }
       );
-      console.log("[standup-RESPONSE] API response:", {
-        hasMeeting: !!payload.meeting,
-        phase: payload.meeting?.phase,
-        participants: payload.meeting?.participantOrder.length,
-      });
       setMeeting(payload.meeting);
 
       // Notify gateway about the standup
       if (payload.meeting) {
-        console.log("[standup-gateway] Notifying gateway about standup");
         try {
           const client = new GatewayClient();
           await client.connect({ gatewayUrl });
-          console.log("[standup-gateway] Connected, sending standup.start event");
           await client.call("standup.start", {
             participants: payload.meeting.participantOrder,
             phase: payload.meeting.phase,
           });
-          console.log("[standup-gateway] Event sent successfully");
           client.disconnect();
         } catch (err) {
-          console.warn("[standup-gateway] Failed to notify gateway:", err instanceof Error ? err.message : err);
+          // Silently fail if gateway notification doesn't work
         }
       }
       if (trigger === "scheduled") {
