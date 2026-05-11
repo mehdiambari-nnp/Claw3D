@@ -180,13 +180,17 @@ const loadJiraIssues = async (
   }
   try {
     const auth = Buffer.from(`${config.email}:${config.apiToken}`).toString("base64");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second timeout
     const response = await fetch(searchUrl, {
       headers: {
         Accept: "application/json",
         Authorization: `Basic ${auth}`,
       },
       cache: "no-store",
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     const payload = (await response.json().catch(() => null)) as
       | {
           issues?: Array<{
@@ -227,12 +231,16 @@ const loadJiraIssues = async (
       }),
     };
   } catch (error) {
+    const isTimeout = error instanceof Error && error.name === "AbortError";
+    const errorMessage = isTimeout
+      ? "Jira request timed out (4s). Check your connection."
+      : error instanceof Error ? error.message : "Failed to load Jira issues.";
     return {
       issues: [],
       sourceState: buildSourceState("jira", {
         ready: false,
         stale: true,
-        error: error instanceof Error ? error.message : "Failed to load Jira issues.",
+        error: errorMessage,
       }),
     };
   }
