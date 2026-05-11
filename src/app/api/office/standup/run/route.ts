@@ -38,6 +38,12 @@ export async function POST(request: Request) {
         typeof body.scheduledFor === "string" ? body.scheduledFor : null,
     });
     saveStandupMeeting(meeting);
+    console.log("[standup-api] Meeting created and saved:", {
+      gatewayUrl,
+      meetingPhase: meeting.phase,
+      participants: meeting.participantOrder.length,
+    });
+
     if (trigger === "scheduled") {
       applyStudioSettingsPatch({
         standup: {

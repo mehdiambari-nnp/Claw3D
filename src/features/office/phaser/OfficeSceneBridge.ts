@@ -26,6 +26,7 @@ export type OfficeSceneBridge = {
   getState: () => OfficeSceneBridgeState;
   setState: (next: Partial<OfficeSceneBridgeState>) => void;
   subscribe: (listener: () => void) => () => void;
+  onZoneClicked?: (zoneType: string) => void;
 };
 
 export const createOfficeSceneBridge = (

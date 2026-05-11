@@ -69,6 +69,19 @@ export class AgentEffectsSystem {
     elapsedMs: number;
     thoughtBubblesEnabled: boolean;
   }) {
+    // Log agent states for debugging
+    if (params.agents.length > 0) {
+      const agentStates = params.agents.map((a) => ({
+        id: a.agentId,
+        name: a.name,
+        state: a.state,
+      }));
+      console.log("[standup-debug] AgentEffectsSystem.update received agents:", {
+        count: params.agents.length,
+        agents: agentStates,
+      });
+    }
+
     // Rebuild the nav grid when the map changes.
     const mapKey = `${params.map.workspaceId}:${params.map.officeVersionId}`;
     if (mapKey !== this.navGridMapVersion) {

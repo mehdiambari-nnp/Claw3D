@@ -213,6 +213,10 @@ export const useRemoteOfficePresence = ({
           previewSnapshot,
           workspaceId: "remote-gateway",
         });
+        console.log("[standup-debug] useRemoteOfficePresence loaded gateway snapshot:", {
+          agentCount: nextSnapshot.agents.length,
+          timestamp: nextSnapshot.timestamp,
+        });
         if (cancelled) return;
         setSnapshot(nextSnapshot);
         setError(null);

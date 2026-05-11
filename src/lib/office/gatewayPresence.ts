@@ -121,20 +121,33 @@ export const buildOfficePresenceSnapshotFromGateway = (params: {
       (typeof agent.identity?.name === "string" ? agent.identity.name.trim() : "") ||
       (typeof agent.name === "string" ? agent.name.trim() : "") ||
       agentId;
+    const state = resolveAgentState(
+      agentId,
+      params.agentsResult,
+      params.statusSummary ?? null,
+      params.previewSnapshot ?? null,
+      now,
+    );
     return [
       {
         agentId,
         name,
-        state: resolveAgentState(
-          agentId,
-          params.agentsResult,
-          params.statusSummary ?? null,
-          params.previewSnapshot ?? null,
-          now,
-        ),
+        state,
       },
     ];
   });
+
+  if (agents.length > 0) {
+    console.log("[standup-debug] buildOfficePresenceSnapshotFromGateway:", {
+      agentCount: agents.length,
+      agents: agents.map((a) => ({
+        id: a.agentId,
+        name: a.name,
+        state: a.state,
+      })),
+    });
+  }
+
   return {
     workspaceId,
     timestamp: new Date(now).toISOString(),

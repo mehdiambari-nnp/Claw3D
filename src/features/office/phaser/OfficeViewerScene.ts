@@ -276,6 +276,36 @@ export const createOfficeViewerScene = (params: {
           this.debugGfx.fillCircle(point.x, point.y, 4);
         }
       }
+
+      // Create clickable zones for interactions
+      for (const zone of state.map.zones) {
+        const points = zone.shape.points;
+        if (points.length < 2) continue;
+
+        // Calculate bounding box
+        const xs = points.map(p => p.x);
+        const ys = points.map(p => p.y);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+        const width = maxX - minX;
+        const height = maxY - minY;
+
+        // Create invisible rectangle
+        const rect = this.add.rectangle(centerX, centerY, width, height);
+        rect.setFillStyle(0x000000, 0);
+        rect.setStrokeStyle(0, 0x00ff00, 0);
+        rect.setInteractive();
+        rect.setData("zoneType", zone.type);
+
+        rect.on("pointerdown", () => {
+          console.log("[office-scene] Clicked zone:", zone.type);
+          bridge.onZoneClicked?.(zone.type);
+        });
+      }
       if (state.debug.showEmitterBounds) {
         this.debugGfx.lineStyle(1, 0xe9b7ff, 0.7);
         for (const emitter of state.map.ambienceEmitters ?? []) {

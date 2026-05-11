@@ -12,6 +12,7 @@ import { buildOfficePresenceSnapshotFromGateway } from "@/lib/office/gatewayPres
 import { NodeGatewayClient, buildAgentMainSessionKey } from "@/lib/gateway/nodeGatewayClient";
 import { loadStudioSettings } from "@/lib/studio/settings-store";
 import { resolveOfficePreference } from "@/lib/studio/settings";
+import { loadActiveStandupMeeting } from "@/lib/office/standup/store";
 
 export const runtime = "nodejs";
 
@@ -89,12 +90,26 @@ export async function GET(request: Request) {
                 maxChars: 240,
               })) as SummaryPreviewSnapshot)
             : null;
-        const snapshot = buildOfficePresenceSnapshotFromGateway({
+        let snapshot = buildOfficePresenceSnapshotFromGateway({
           agentsResult,
           statusSummary,
           previewSnapshot,
           workspaceId: "remote-gateway",
         });
+
+        // If a standup meeting is active and gathering, override agent states to "meeting"
+        const activeStandup = loadActiveStandupMeeting();
+        if (activeStandup && (activeStandup.phase === "gathering" || activeStandup.phase === "in_progress")) {
+          const participantIdsLower = activeStandup.participantOrder.map(id => id.toLowerCase());
+          snapshot = {
+            ...snapshot,
+            agents: snapshot.agents.map((agent) => ({
+              ...agent,
+              state: participantIdsLower.includes(agent.agentId.toLowerCase()) ? "meeting" : agent.state,
+            })),
+          };
+        }
+
         console.info("[office-presence] Remote gateway presence loaded.", {
           gatewayUrl: officePreference.remoteOfficeGatewayUrl,
           elapsedMs: Date.now() - startedAt,
@@ -105,7 +120,21 @@ export async function GET(request: Request) {
         gatewayClient.close();
       }
     }
-    const snapshot = loadOfficePresenceSnapshot(workspaceId);
+    let snapshot = loadOfficePresenceSnapshot(workspaceId);
+
+    // If a standup meeting is active and gathering, override agent states to "meeting"
+    const activeStandup = loadActiveStandupMeeting();
+    if (activeStandup && (activeStandup.phase === "gathering" || activeStandup.phase === "in_progress")) {
+      const participantIdsLower = activeStandup.participantOrder.map(id => id.toLowerCase());
+      snapshot = {
+        ...snapshot,
+        agents: snapshot.agents.map((agent) => ({
+          ...agent,
+          state: participantIdsLower.includes(agent.agentId.toLowerCase()) ? "meeting" : agent.state,
+        })),
+      };
+    }
+
     return NextResponse.json(snapshot, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load office presence.";

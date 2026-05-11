@@ -20,10 +20,11 @@ type OfficePhaserCanvasProps = {
   runtime: OfficeRuntimeSettings;
   onObjectMoved?: (id: string, x: number, y: number) => void;
   onSelectionChange?: (ids: string[]) => void;
+  onZoneClicked?: (zoneType: string) => void;
 };
 
 export function OfficePhaserCanvas(props: OfficePhaserCanvasProps) {
-  const { debug, map, mode, onObjectMoved, onSelectionChange, presence, runtime } = props;
+  const { debug, map, mode, onObjectMoved, onSelectionChange, onZoneClicked, presence, runtime } = props;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const gameRef = useRef<import("phaser").Game | null>(null);
   const bridgeRef = useRef<ReturnType<typeof createOfficeSceneBridge> | null>(null);
@@ -34,8 +35,13 @@ export function OfficePhaserCanvas(props: OfficePhaserCanvasProps) {
       debug,
       runtime,
     });
+    bridgeRef.current.onZoneClicked = onZoneClicked;
   }
   const bridge = bridgeRef.current;
+
+  useEffect(() => {
+    bridge.onZoneClicked = onZoneClicked;
+  }, [bridge, onZoneClicked]);
 
   useEffect(() => {
     bridge.setState({
