@@ -1121,14 +1121,8 @@ function useAgentTick(
             existing.interactionTarget !== "meeting_room";
           ns.targetX = meetingTarget.x;
           ns.targetY = meetingTarget.y;
-          if (targetChanged) {
-            ns.path = planPath(
-              existing.x,
-              existing.y,
-              meetingTarget.x,
-              meetingTarget.y,
-            );
-          }
+          // Meeting seats exist outside the navigation grid, so use direct waypoint instead of A* pathfinding
+          ns.path = [{ x: meetingTarget.x, y: meetingTarget.y }];
           ns.state =
             Math.hypot(
               existing.x - meetingTarget.x,
