@@ -3301,7 +3301,7 @@ export function OfficeScreen({
       }
       return next;
     });
-  }, [immediateGymHoldByAgentId, state.agents]);
+  }, [immediateGymHoldByAgentId]);
 
   const activeGithubReviewAgentId = useMemo(
     () =>
