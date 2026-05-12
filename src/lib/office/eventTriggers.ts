@@ -150,30 +150,72 @@ const buildStableLatestRequestSeed = (value: string): string => {
 const pruneBooleanMap = (
   source: BooleanByAgentId,
   activeAgentIds: Set<string>,
-): BooleanByAgentId =>
-  Object.fromEntries(
-    Object.entries(source).filter(
+): BooleanByAgentId => {
+  const entries = Object.entries(source);
+  let hasInactiveOrOutOfScope = false;
+  for (const [agentId, active] of entries) {
+    if (!Boolean(active) || !activeAgentIds.has(agentId)) {
+      hasInactiveOrOutOfScope = true;
+      break;
+    }
+  }
+  // If source contains only active entries within activeAgentIds, return it as-is
+  if (!hasInactiveOrOutOfScope) {
+    return source;
+  }
+  // Otherwise create filtered copy
+  return Object.fromEntries(
+    entries.filter(
       ([agentId, active]) => Boolean(active) && activeAgentIds.has(agentId),
     ),
   );
+};
 
 const pruneStringMap = (
   source: StringByAgentId,
   activeAgentIds: Set<string>,
-): StringByAgentId =>
-  Object.fromEntries(
-    Object.entries(source).filter(
+): StringByAgentId => {
+  const entries = Object.entries(source);
+  let hasInvalidOrOutOfScope = false;
+  for (const [agentId, value] of entries) {
+    if (!activeAgentIds.has(agentId) || value.trim().length === 0) {
+      hasInvalidOrOutOfScope = true;
+      break;
+    }
+  }
+  if (!hasInvalidOrOutOfScope) {
+    return source;
+  }
+  return Object.fromEntries(
+    entries.filter(
       ([agentId, value]) =>
         activeAgentIds.has(agentId) && value.trim().length > 0,
     ),
   );
+};
 
 const prunePhoneCallMap = (
   source: PhoneCallByAgentId,
   activeAgentIds: Set<string>,
-): PhoneCallByAgentId =>
-  Object.fromEntries(
-    Object.entries(source).filter(
+): PhoneCallByAgentId => {
+  const entries = Object.entries(source);
+  let hasInvalidOrOutOfScope = false;
+  for (const [agentId, request] of entries) {
+    const isValid = activeAgentIds.has(agentId) &&
+      Boolean(request?.callee?.trim()) &&
+      (request.phase === "needs_message" ||
+        (request.phase === "ready_to_call" &&
+          Boolean(request.message?.trim())));
+    if (!isValid) {
+      hasInvalidOrOutOfScope = true;
+      break;
+    }
+  }
+  if (!hasInvalidOrOutOfScope) {
+    return source;
+  }
+  return Object.fromEntries(
+    entries.filter(
       ([agentId, request]) =>
         activeAgentIds.has(agentId) &&
         Boolean(request?.callee?.trim()) &&
@@ -182,13 +224,30 @@ const prunePhoneCallMap = (
             Boolean(request.message?.trim()))),
     ),
   );
+};
 
 const pruneTextMessageMap = (
   source: TextMessageByAgentId,
   activeAgentIds: Set<string>,
-): TextMessageByAgentId =>
-  Object.fromEntries(
-    Object.entries(source).filter(
+): TextMessageByAgentId => {
+  const entries = Object.entries(source);
+  let hasInvalidOrOutOfScope = false;
+  for (const [agentId, request] of entries) {
+    const isValid = activeAgentIds.has(agentId) &&
+      Boolean(request?.recipient?.trim()) &&
+      (request.phase === "needs_message" ||
+        (request.phase === "ready_to_send" &&
+          Boolean(request.message?.trim())));
+    if (!isValid) {
+      hasInvalidOrOutOfScope = true;
+      break;
+    }
+  }
+  if (!hasInvalidOrOutOfScope) {
+    return source;
+  }
+  return Object.fromEntries(
+    entries.filter(
       ([agentId, request]) =>
         activeAgentIds.has(agentId) &&
         Boolean(request?.recipient?.trim()) &&
@@ -197,14 +256,29 @@ const pruneTextMessageMap = (
             Boolean(request.message?.trim()))),
     ),
   );
+};
 
 const pruneFutureMap = (
   source: NumberByAgentId,
   activeAgentIds: Set<string>,
   nowMs: number,
-): NumberByAgentId =>
-  Object.fromEntries(
-    Object.entries(source).filter(
+): NumberByAgentId => {
+  const entries = Object.entries(source);
+  let hasInvalidOrExpired = false;
+  for (const [agentId, until] of entries) {
+    if (!activeAgentIds.has(agentId) ||
+        typeof until !== "number" ||
+        !Number.isFinite(until) ||
+        until <= nowMs) {
+      hasInvalidOrExpired = true;
+      break;
+    }
+  }
+  if (!hasInvalidOrExpired) {
+    return source;
+  }
+  return Object.fromEntries(
+    entries.filter(
       ([agentId, until]) =>
         activeAgentIds.has(agentId) &&
         typeof until === "number" &&
@@ -212,6 +286,7 @@ const pruneFutureMap = (
         until > nowMs,
     ),
   );
+};
 
 const resolveMessageRole = (message: unknown): string | null => {
   if (!message || typeof message !== "object") return null;

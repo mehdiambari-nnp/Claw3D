@@ -75,13 +75,6 @@ export const useRemoteOfficePresence = ({
 
   useEffect(() => {
     if (!active) return;
-    console.info("[remote-office] Starting presence polling.", {
-      sourceKind,
-      configuredPresenceUrl: presenceUrl,
-      configuredGatewayUrl: normalizedGatewayUrl,
-      requestUrl,
-      pollIntervalMs,
-    });
     let cancelled = false;
     let intervalId: number | null = null;
     let gatewayClient: GatewayClient | null = null;
@@ -108,16 +101,8 @@ export const useRemoteOfficePresence = ({
         if (cancelled) return;
         setSnapshot(payload as OfficePresenceSnapshot);
         setError(null);
-        if (!successLoggedRef.current) {
-          const resolvedSnapshot = payload as OfficePresenceSnapshot;
-          console.info("[remote-office] Presence polling succeeded.", {
-            configuredPresenceUrl: presenceUrl,
-            agentCount: resolvedSnapshot.agents.length,
-            timestamp: resolvedSnapshot.timestamp,
-          });
-          successLoggedRef.current = true;
-          lastLoggedErrorRef.current = null;
-        }
+        successLoggedRef.current = true;
+        lastLoggedErrorRef.current = null;
       } catch (loadError) {
         if (cancelled) return;
         const message =
@@ -141,55 +126,27 @@ export const useRemoteOfficePresence = ({
     };
     const loadFromGateway = async () => {
       if (loadInFlight) {
-        console.debug("[remote-office] Skipping overlapping gateway poll.", {
-          configuredGatewayUrl: normalizedGatewayUrl,
-        });
         return;
       }
       loadInFlight = true;
       try {
         if (!gatewayClient) {
           gatewayClient = new GatewayClient();
-          console.info("[remote-office] Created remote gateway client.", {
-            configuredGatewayUrl: normalizedGatewayUrl,
-          });
         }
         if (!gatewayConnected) {
-          console.info("[remote-office] Connecting to remote gateway.", {
-            configuredGatewayUrl: normalizedGatewayUrl,
-          });
           await gatewayClient.connect({
             gatewayUrl: normalizedGatewayUrl,
           });
           gatewayConnected = true;
-          console.info("[remote-office] Remote gateway connected.", {
-            configuredGatewayUrl: normalizedGatewayUrl,
-          });
         }
-        console.info("[remote-office] Requesting remote gateway agents list.", {
-          configuredGatewayUrl: normalizedGatewayUrl,
-        });
         const agentsResult = (await gatewayClient.call("agents.list", {})) as {
           mainKey?: string;
           agents?: Array<{ id?: string; name?: string; identity?: { name?: string } }>;
         };
-        console.info("[remote-office] Remote gateway agents list loaded.", {
-          configuredGatewayUrl: normalizedGatewayUrl,
-          agentCount: Array.isArray(agentsResult.agents) ? agentsResult.agents.length : 0,
-        });
-        console.info("[remote-office] Requesting remote gateway status.", {
-          configuredGatewayUrl: normalizedGatewayUrl,
-        });
         const statusSummary = (await gatewayClient.call(
           "status",
           {}
         )) as SummaryStatusSnapshot;
-        console.info("[remote-office] Remote gateway status loaded.", {
-          configuredGatewayUrl: normalizedGatewayUrl,
-          byAgentCount: Array.isArray(statusSummary.sessions?.byAgent)
-            ? statusSummary.sessions?.byAgent.length
-            : 0,
-        });
         const remoteAgentIds = Array.isArray(agentsResult.agents)
           ? agentsResult.agents
               .map((agent) => (typeof agent.id === "string" ? agent.id.trim() : ""))
@@ -216,15 +173,8 @@ export const useRemoteOfficePresence = ({
         if (cancelled) return;
         setSnapshot(nextSnapshot);
         setError(null);
-        if (!successLoggedRef.current) {
-          console.info("[remote-office] Gateway presence polling succeeded.", {
-            configuredGatewayUrl: normalizedGatewayUrl,
-            agentCount: nextSnapshot.agents.length,
-            timestamp: nextSnapshot.timestamp,
-          });
-          successLoggedRef.current = true;
-          lastLoggedErrorRef.current = null;
-        }
+        successLoggedRef.current = true;
+        lastLoggedErrorRef.current = null;
       } catch (loadError) {
         if (cancelled) return;
         const message =

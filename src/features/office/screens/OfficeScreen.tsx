@@ -1355,21 +1355,6 @@ export function OfficeScreen({
     gatewayUrl: remoteOfficeGatewayUrl,
   });
 
-  // Log when remote office snapshot loads
-  useEffect(() => {
-    console.log("[remote-office-snapshot] Snapshot arrived:", {
-      loaded: remoteOfficeLoaded,
-      error: remoteOfficeError,
-      hasSnapshot: !!remoteOfficeSnapshot,
-      agentCount: remoteOfficeSnapshot?.agents?.length ?? 0,
-      agents: remoteOfficeSnapshot?.agents?.map((a) => ({
-        agentId: a.agentId,
-        name: a.name,
-        state: a.state,
-      })) ?? [],
-    });
-  }, [remoteOfficeSnapshot, remoteOfficeLoaded, remoteOfficeError]);
-
   const { snapshot: remoteOfficeLayoutSnapshot } = useRemoteOfficeLayout({
     enabled: remoteOfficeEnabled,
     presenceUrl: remoteOfficePresenceUrl,
@@ -1885,7 +1870,6 @@ export function OfficeScreen({
         }
         if (debugEnabled) {
           setDebugRows(debugCollector);
-          console.info("[office-debug] Reconciled agent state.", debugCollector);
         }
         lastGatewayActivityAtRef.current = Date.now();
         setAgentsLoaded(true);
@@ -2607,17 +2591,6 @@ export function OfficeScreen({
             ];
             return next.slice(-MAX_OPENCLAW_LOG_ENTRIES);
           });
-          if (debugEnabled) {
-            console.info(
-              "[office-debug] Refreshed transport session history.",
-              {
-                agentId: targetAgentId,
-                requestedSessionKey,
-                reason: params.reason,
-                lastUser: lastUser || null,
-              },
-            );
-          }
         } catch (error) {
           setOpenClawLogEntries((previous) => {
             const next = [
@@ -2664,12 +2637,6 @@ export function OfficeScreen({
         isDisconnectLikeError: isGatewayDisconnectLikeError,
         logError: (message, error) => console.error(message, error),
       });
-      if (debugEnabled) {
-        console.info("[office-debug] Requested agent history refresh.", {
-          agentId: params.agentId,
-          reason: params.reason,
-        });
-      }
     },
     [debugEnabled, dispatch, provider, status],
   );
@@ -2914,16 +2881,6 @@ export function OfficeScreen({
           agents: stateRef.current.agents,
         }),
       );
-      if (debugEnabled) {
-        console.info("[office-debug] Gateway event.", {
-          event: event.event,
-          seq: event.seq,
-          payload:
-            typeof event.payload === "object" && event.payload !== null
-              ? JSON.stringify(event.payload).slice(0, 220)
-              : (event.payload ?? null),
-        });
-      }
       if (
         shouldSuppressPhoneBoothAssistantReply({
           event,
@@ -3301,7 +3258,7 @@ export function OfficeScreen({
       }
       return next;
     });
-  }, [immediateGymHoldByAgentId]);
+  }, [immediateGymHoldByAgentId, state.agents]);
 
   const activeGithubReviewAgentId = useMemo(
     () =>
@@ -4379,7 +4336,6 @@ export function OfficeScreen({
     [remoteOfficeSnapshot, standupController.meeting]
   );
 
-
   const chatRosterEntries = useMemo<ChatRosterEntry[]>(
     () => [
       ...state.agents.map((agent) => ({
@@ -4404,10 +4360,7 @@ export function OfficeScreen({
     ? (remoteChatByAgentId[focusedRemoteChatTarget.id] ?? EMPTY_REMOTE_CHAT_SESSION)
     : null;
   const allVisibleAgents = useMemo(
-    () => {
-      const all = [...officeAgents, ...remoteOfficeAgents];
-      return all;
-    },
+    () => [...officeAgents, ...remoteOfficeAgents],
     [officeAgents, remoteOfficeAgents],
   );
   const remoteOfficeVisible =

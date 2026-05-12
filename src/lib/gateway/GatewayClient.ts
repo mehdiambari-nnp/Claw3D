@@ -991,6 +991,7 @@ export const useGatewayConnection = (
     if (!hasLastKnownGoodState) return;
     if (!gatewayUrl.trim()) return;
     if (!isAutoManagedAdapter(selectedAdapterType)) return;
+    if (status !== "disconnected") return;
     didAutoConnect.current = true;
     const delayMs = resolveInitialGatewayAutoConnectDelayMs(selectedAdapterType);
     gatewayDebugLog("auto-connect", {
@@ -1008,7 +1009,7 @@ export const useGatewayConnection = (
         autoConnectTimerRef.current = null;
       }
     };
-  }, [connect, gatewayUrl, hasLastKnownGoodState, selectedAdapterType, settingsLoaded]);
+  }, [connect, gatewayUrl, hasLastKnownGoodState, selectedAdapterType, settingsLoaded, status]);
 
   // Auto-retry on disconnect (gateway busy, network blip, etc.)
   useEffect(() => {

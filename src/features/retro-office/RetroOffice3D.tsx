@@ -2856,23 +2856,15 @@ export function RetroOffice3D({
     standupMeeting,
   );
   useEffect(() => {
-    const syncRenderAgentUi = () => {
-      const next: Record<string, RenderAgentUiSnapshot> = {};
-      for (const agent of renderAgentsRef.current) {
-        next[agent.id] = {
-          state: agent.state,
-          status: agent.status,
-        };
-      }
-      setRenderAgentUiById(next);
-    };
-
-    syncRenderAgentUi();
-    const timer = window.setInterval(syncRenderAgentUi, 250);
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [renderAgentsRef]);
+    const next: Record<string, RenderAgentUiSnapshot> = {};
+    for (const agent of renderAgentsRef.current) {
+      next[agent.id] = {
+        state: agent.state,
+        status: agent.status,
+      };
+    }
+    setRenderAgentUiById(next);
+  }, [sceneAgents]);
   const activeMonitor = monitorAgentId
     ? (monitorByAgentId[monitorAgentId] ?? null)
     : null;
@@ -3708,7 +3700,6 @@ export function RetroOffice3D({
       onStandupArrivalsChangeRef.current?.(arrivedParticipants);
     };
 
-    syncArrivalState();
     const intervalId = window.setInterval(syncArrivalState, 150);
     return () => {
       window.clearInterval(intervalId);
@@ -3719,7 +3710,6 @@ export function RetroOffice3D({
     manualPhoneBoothOpen,
     phoneBoothAgentId,
     qaTestingAgentId,
-    renderAgentLookupRef,
     smsBoothAgentId,
     standupActive,
     standupMeeting,
