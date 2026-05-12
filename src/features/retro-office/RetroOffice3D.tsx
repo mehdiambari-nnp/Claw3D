@@ -2856,15 +2856,25 @@ export function RetroOffice3D({
     standupMeeting,
   );
   useEffect(() => {
-    const next: Record<string, RenderAgentUiSnapshot> = {};
-    for (const agent of renderAgentsRef.current) {
-      next[agent.id] = {
-        state: agent.state,
-        status: agent.status,
-      };
-    }
-    setRenderAgentUiById(next);
-  }, [sceneAgents]);
+    const syncRenderAgentUi = () => {
+      const next: Record<string, RenderAgentUiSnapshot> = {};
+      for (const agent of renderAgentsRef.current) {
+        next[agent.id] = {
+          state: agent.state,
+          status: agent.status,
+        };
+      }
+      setRenderAgentUiById(next);
+    };
+
+    syncRenderAgentUi();
+    const timer = window.setInterval(syncRenderAgentUi, 250);
+    return () => {
+      window.clearInterval(timer);
+    };
+  // renderAgentsRef is a stable ref — this effect runs once on mount only.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renderAgentsRef]);
   const activeMonitor = monitorAgentId
     ? (monitorByAgentId[monitorAgentId] ?? null)
     : null;
