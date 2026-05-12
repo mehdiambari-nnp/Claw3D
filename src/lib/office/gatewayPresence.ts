@@ -137,17 +137,6 @@ export const buildOfficePresenceSnapshotFromGateway = (params: {
     ];
   });
 
-  if (agents.length > 0) {
-    console.log("[standup-debug] buildOfficePresenceSnapshotFromGateway:", {
-      agentCount: agents.length,
-      agents: agents.map((a) => ({
-        id: a.agentId,
-        name: a.name,
-        state: a.state,
-      })),
-    });
-  }
-
   return {
     workspaceId,
     timestamp: new Date(now).toISOString(),

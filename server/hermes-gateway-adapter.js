@@ -297,13 +297,7 @@ function clearHistory(sessionKey) {
 function discoverAndCreateAgents() {
   try {
     const workspacesDir = path.join(HOME, ".hermes");
-    console.log(`[hermes-adapter] Discovering agent workspaces from: ${workspacesDir}`);
-    console.log(`[hermes-adapter] Agent working directory: ${SAAS_PROJECT_DIR}`);
-
-    if (!fs.existsSync(workspacesDir)) {
-      console.log("[hermes-adapter] No workspaces directory found.");
-      return;
-    }
+    if (!fs.existsSync(workspacesDir)) return;
 
     const entries = fs.readdirSync(workspacesDir, { withFileTypes: true });
     let createdCount = 0;
@@ -314,13 +308,8 @@ function discoverAndCreateAgents() {
       const workspacePath = path.join(workspacesDir, entry.name);
       const agentId = entry.name.replace("workspace-", "");
 
-      // Skip if agent already exists (e.g., hermes)
-      if (agentRegistry.has(agentId)) {
-        console.log(`[hermes-adapter] Agent already registered: ${agentId}`);
-        continue;
-      }
+      if (agentRegistry.has(agentId)) continue;
 
-      // Create agent entry from workspace
       const agent = {
         id: agentId,
         name: agentId.charAt(0).toUpperCase() + agentId.slice(1),
@@ -331,11 +320,12 @@ function discoverAndCreateAgents() {
       };
 
       agentRegistry.set(agentId, agent);
-      console.log(`[hermes-adapter] ✓ Auto-created agent from workspace: ${agentId} (cwd: ${SAAS_PROJECT_DIR})`);
       createdCount++;
     }
 
-    console.log(`[hermes-adapter] Agent discovery complete. Created: ${createdCount}`);
+    if (createdCount > 0) {
+      console.log(`[hermes-adapter] Auto-created ${createdCount} agent(s) from workspaces.`);
+    }
   } catch (err) {
     console.warn("[hermes-adapter] Could not discover agents:", sanitizeErrorMessage(err));
   }
@@ -344,12 +334,7 @@ function discoverAndCreateAgents() {
 function loadAgentFilesFromDisk() {
   try {
     const workspacesDir = path.join(HOME, ".hermes");
-    console.log(`[hermes-adapter] Loading agent files from: ${workspacesDir}`);
-
-    if (!fs.existsSync(workspacesDir)) {
-      console.log("[hermes-adapter] No workspaces directory found yet.");
-      return;
-    }
+    if (!fs.existsSync(workspacesDir)) return;
 
     const entries = fs.readdirSync(workspacesDir, { withFileTypes: true });
     let loadedCount = 0;
@@ -366,9 +351,7 @@ function loadAgentFilesFromDisk() {
           if (["SOUL.md", "AGENTS.md", "USER.md", "TOOLS.md", "HEARTBEAT.md", "MEMORY.md", "IDENTITY.md"].includes(file)) {
             const filePath = path.join(workspacePath, file);
             const content = fs.readFileSync(filePath, "utf8");
-            const key = `${agentId}/${file}`;
-            agentFiles.set(key, content);
-            console.log(`[hermes-adapter]   ✓ ${agentId}/${file}`);
+            agentFiles.set(`${agentId}/${file}`, content);
             loadedCount++;
           }
         }
@@ -377,7 +360,9 @@ function loadAgentFilesFromDisk() {
       }
     }
 
-    console.log(`[hermes-adapter] ✓ Loaded ${loadedCount} agent file(s) from disk`);
+    if (loadedCount > 0) {
+      console.log(`[hermes-adapter] Loaded ${loadedCount} agent file(s) from disk.`);
+    }
   } catch (err) {
     console.warn("[hermes-adapter] Could not load agent files from disk:", sanitizeErrorMessage(err));
   }
@@ -393,7 +378,6 @@ function persistAgentFilesToDisk(agentId, fileName, content) {
     const filePath = path.join(agent.workspace, fileName);
     fs.mkdirSync(agent.workspace, { recursive: true });
     fs.writeFileSync(filePath, content, "utf8");
-    console.log(`[hermes-adapter] Persisted agent file: ${filePath}`);
   } catch (err) {
     console.warn(`[hermes-adapter] Could not persist agent file ${fileName}:`, sanitizeErrorMessage(err));
   }
@@ -409,45 +393,25 @@ function randomId() {
 
 function scanInstalledSkills(workspaceDir) {
   const skillsDirs = [
-    path.join(workspaceDir, "skills"),  // Workspace local skills
+    path.join(workspaceDir, "skills"),  // Workspace local skills (priority)
     GLOBAL_SKILLS_DIR,                   // Global shared skills
   ];
   const results = [];
-  const seenSkills = new Set();  // Avoid duplicates
+  const seenSkills = new Set();
 
   for (const skillsDir of skillsDirs) {
     try {
-      console.log(`[hermes-adapter] Scanning skills in: ${skillsDir}`);
-      console.log(`[hermes-adapter] Directory exists: ${fs.existsSync(skillsDir)}`);
-
-      if (!fs.existsSync(skillsDir)) {
-        console.log(`[hermes-adapter] Skills directory not found: ${skillsDir}`);
-        continue;
-      }
+      if (!fs.existsSync(skillsDir)) continue;
 
       const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
-      console.log(`[hermes-adapter] Found ${entries.length} entries in skills directory`);
 
       for (const entry of entries) {
-        console.log(`[hermes-adapter]   - Entry: ${entry.name} (isDirectory: ${entry.isDirectory()})`);
-
-        // Skip hidden directories and files
-        if (entry.name.startsWith(".")) continue;
-        if (!entry.isDirectory()) continue;
-
-        // Skip if already registered (workspace takes priority over global)
-        if (seenSkills.has(entry.name)) {
-          console.log(`[hermes-adapter] ⊘ Skill already registered (skipping global copy): ${entry.name}`);
-          continue;
-        }
+        if (entry.name.startsWith(".") || !entry.isDirectory()) continue;
+        if (seenSkills.has(entry.name)) continue;
 
         const skillDir = path.join(skillsDir, entry.name);
         const skillMdPath = path.join(skillDir, "SKILL.md");
 
-        console.log(`[hermes-adapter]     Checking for SKILL.md at: ${skillMdPath}`);
-        console.log(`[hermes-adapter]     SKILL.md exists: ${fs.existsSync(skillMdPath)}`);
-
-        // Only include directories that have a SKILL.md file
         if (!fs.existsSync(skillMdPath)) continue;
 
         seenSkills.add(entry.name);
@@ -468,8 +432,6 @@ function scanInstalledSkills(workspaceDir) {
           configChecks: [],
           install: [],
         });
-
-        console.log(`[hermes-adapter] ✓ Registered skill: ${entry.name}`);
       }
     } catch (err) {
       console.warn(
@@ -479,7 +441,6 @@ function scanInstalledSkills(workspaceDir) {
     }
   }
 
-  console.log(`[hermes-adapter] Skills scan complete: found ${results.length} skill(s)`);
   return results;
 }
 

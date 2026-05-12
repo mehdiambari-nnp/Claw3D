@@ -1,6 +1,7 @@
 import type Phaser from "phaser";
 
 import type { OfficeSceneBridge } from "@/features/office/phaser/OfficeSceneBridge";
+import type { OfficeMap } from "@/lib/office/schema";
 import { AgentEffectsSystem } from "@/features/office/phaser/systems/AgentEffectsSystem";
 import { AmbienceSystem } from "@/features/office/phaser/systems/AmbienceSystem";
 import { LightingSystem } from "@/features/office/phaser/systems/LightingSystem";
@@ -20,6 +21,7 @@ export const createOfficeViewerScene = (params: {
     private staticLayer: Phaser.GameObjects.Group | null = null;
     private debugGfx: Phaser.GameObjects.Graphics | null = null;
     private metricsText: Phaser.GameObjects.Text | null = null;
+    private zoneRects: Phaser.GameObjects.Rectangle[] = [];
     private startedAt = 0;
 
     private createTextureGraphics() {
@@ -110,9 +112,36 @@ export const createOfficeViewerScene = (params: {
       }
     }
 
+    private rebuildZoneRects(zones: OfficeMap["zones"], bridge: typeof params.bridge) {
+      for (const rect of this.zoneRects) rect.destroy();
+      this.zoneRects = [];
+
+      for (const zone of zones) {
+        const points = zone.shape.points;
+        if (points.length < 2) continue;
+        const xs = points.map((p: { x: number; y: number }) => p.x);
+        const ys = points.map((p: { x: number; y: number }) => p.y);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        const rect = this.add.rectangle(
+          (minX + maxX) / 2, (minY + maxY) / 2,
+          maxX - minX, maxY - minY,
+        );
+        rect.setFillStyle(0x000000, 0);
+        rect.setStrokeStyle(0, 0x000000, 0);
+        rect.setInteractive();
+        rect.on("pointerdown", () => bridge.onZoneClicked?.(zone.type));
+        this.zoneRects.push(rect);
+      }
+    }
+
     shutdown() {
       this.unsubscribe?.();
       this.unsubscribe = null;
+      for (const rect of this.zoneRects) rect.destroy();
+      this.zoneRects = [];
       this.floor?.destroy();
       this.floor = null;
       this.staticLayer?.destroy(true, true);
@@ -277,35 +306,8 @@ export const createOfficeViewerScene = (params: {
         }
       }
 
-      // Create clickable zones for interactions
-      for (const zone of state.map.zones) {
-        const points = zone.shape.points;
-        if (points.length < 2) continue;
+      this.rebuildZoneRects(state.map.zones, bridge);
 
-        // Calculate bounding box
-        const xs = points.map(p => p.x);
-        const ys = points.map(p => p.y);
-        const minX = Math.min(...xs);
-        const maxX = Math.max(...xs);
-        const minY = Math.min(...ys);
-        const maxY = Math.max(...ys);
-        const centerX = (minX + maxX) / 2;
-        const centerY = (minY + maxY) / 2;
-        const width = maxX - minX;
-        const height = maxY - minY;
-
-        // Create invisible rectangle
-        const rect = this.add.rectangle(centerX, centerY, width, height);
-        rect.setFillStyle(0x000000, 0);
-        rect.setStrokeStyle(0, 0x00ff00, 0);
-        rect.setInteractive();
-        rect.setData("zoneType", zone.type);
-
-        rect.on("pointerdown", () => {
-          console.log("[office-scene] Clicked zone:", zone.type);
-          bridge.onZoneClicked?.(zone.type);
-        });
-      }
       if (state.debug.showEmitterBounds) {
         this.debugGfx.lineStyle(1, 0xe9b7ff, 0.7);
         for (const emitter of state.map.ambienceEmitters ?? []) {

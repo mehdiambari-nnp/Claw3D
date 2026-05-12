@@ -492,10 +492,7 @@ export function PlaybooksPanel({
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  console.log("[PlaybooksPanel] Start now button clicked!");
-                  void standup.startMeeting("manual");
-                }}
+                onClick={() => void standup.startMeeting("manual")}
                 className="rounded border border-emerald-500/25 bg-emerald-500/10 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.16em] text-emerald-100 transition-colors hover:border-emerald-400/50 hover:text-white"
               >
                 Start now

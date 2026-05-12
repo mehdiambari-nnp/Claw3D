@@ -179,15 +179,10 @@ const loadJiraIssues = async (
     };
   }
   try {
-    console.log(`[standup] Jira: attempting to fetch ${searchUrl}`);
     const auth = Buffer.from(`${config.email}:${config.apiToken}`).toString("base64");
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      console.log(`[standup] Jira: timeout triggered after 4s`);
-      controller.abort();
-    }, 4000); // 4 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    const fetchStartTime = Date.now();
     const response = await fetch(searchUrl, {
       headers: {
         Accept: "application/json",
@@ -197,7 +192,6 @@ const loadJiraIssues = async (
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
-    console.log(`[standup] Jira: fetch completed in ${Date.now() - fetchStartTime}ms, status ${response.status}`);
     const payload = (await response.json().catch(() => null)) as
       | {
           issues?: Array<{
@@ -242,7 +236,6 @@ const loadJiraIssues = async (
     const errorMessage = isTimeout
       ? "Jira request timed out (4s). Check your connection."
       : error instanceof Error ? error.message : "Failed to load Jira issues.";
-    console.log(`[standup] Jira: error - ${errorMessage} (isTimeout: ${isTimeout})`);
     return {
       issues: [],
       sourceState: buildSourceState("jira", {
@@ -323,26 +316,10 @@ export const buildStandupMeeting = async (params: {
   trigger: StandupTriggerKind;
   scheduledFor?: string | null;
 }): Promise<StandupMeeting> => {
-  console.log(`[standup] buildStandupMeeting starting with ${params.agents.length} agents`);
-  const startTime = Date.now();
-
   const agents = normalizeAgentSnapshots(params.agents);
-  console.log(`[standup] Normalized ${agents.length} agents`);
-
-  console.log(`[standup] Loading Jira issues...`);
-  const jiraStartTime = Date.now();
   const [jiraResult] = await Promise.all([loadJiraIssues(params.config.jira)]);
-  console.log(`[standup] Jira loading completed in ${Date.now() - jiraStartTime}ms`);
-
-  console.log(`[standup] Loading GitHub commits...`);
-  const githubStartTime = Date.now();
   const githubResult = loadGitHubCommitSummaries();
-  console.log(`[standup] GitHub loading completed in ${Date.now() - githubStartTime}ms`);
-  console.log(`[standup] Building cards for ${agents.length} agents...`);
   const cards: StandupSummaryCard[] = agents.map((agent) => {
-    const agentStartTime = Date.now();
-    console.log(`[standup] Building card for agent: ${agent.agentId}`);
-
     const manual = params.config.manualByAgentId[agent.agentId] ?? {
       jiraAssignee: null,
       currentTask: "",
@@ -368,8 +345,6 @@ export const buildStandupMeeting = async (params: {
     }
     const manualNotes = [manual.note].map(coerceText).filter(Boolean);
 
-    console.log(`[standup] Card for ${agent.agentId} completed in ${Date.now() - agentStartTime}ms`);
-
     return {
       agentId: agent.agentId,
       agentName: agent.name,
@@ -390,7 +365,6 @@ export const buildStandupMeeting = async (params: {
     };
   });
   const startedAt = new Date().toISOString();
-  console.log(`[standup] buildStandupMeeting completed in ${Date.now() - startTime}ms with ${cards.length} cards`);
 
   return {
     id: randomUUID(),

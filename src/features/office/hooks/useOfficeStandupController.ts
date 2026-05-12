@@ -11,7 +11,6 @@ import type {
   StudioStandupPreferencePatch,
   StudioStandupPreferencePublic,
 } from "@/lib/studio/settings";
-import { GatewayClient } from "@/lib/gateway/GatewayClient";
 
 type StandupConfigResponse = {
   gatewayUrl: string;
@@ -294,20 +293,6 @@ export const useOfficeStandupController = (params: {
       );
       setMeeting(payload.meeting);
 
-      // Notify gateway about the standup
-      if (payload.meeting) {
-        try {
-          const client = new GatewayClient();
-          await client.connect({ gatewayUrl });
-          await client.call("standup.start", {
-            participants: payload.meeting.participantOrder,
-            phase: payload.meeting.phase,
-          });
-          client.disconnect();
-        } catch (err) {
-          // Silently fail if gateway notification doesn't work
-        }
-      }
       if (trigger === "scheduled") {
         setConfig((current) =>
           current
